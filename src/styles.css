@@ -1,0 +1,88 @@
+:root {
+  --bg: #f4f6fc;
+  --text: #1a1a1a;
+  --card: rgba(255,255,255,0.9);
+  --primary: #6a11cb;
+  --secondary: #2575fc;
+}
+
+[data-theme="dark"] {
+  --bg: #0b0f1a;
+  --text: #ffffff;
+  --card: rgba(20, 25, 40, 0.8);
+  --primary: #8a2be2;
+  --secondary: #00c6ff;
+}
+
+body {
+  margin: 0;
+  font-family: "Poppins", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  transition: all 0.3s ease;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Poppins;
+}
+
+/* LAYOUT */
+.app-layout {
+  display: flex;
+}
+
+/* SIDEBAR */
+
+
+
+/* NAVBAR */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px;
+  background: var(--card);
+  backdrop-filter: blur(10px);
+}
+
+/* CARDS */
+.card {
+  background: var(--card);
+  padding: 20px;
+  border-radius: 12px;
+  margin: 10px;
+}
+
+/* GRID */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2,1fr);
+  gap: 10px;
+}
+
+/* LOGIN */
+.login {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: url("https://images.unsplash.com/photo-1521737604893-d14cc237f11d");
+  background-size: cover;
+}
+
+.login-card {
+  background: rgba(255,255,255,0.2);
+  padding: 30px;
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+}
+
+/* NOTIFICATIONS */
+.notif-box {
+  position: absolute;
+  background: var(--card);
+  padding: 10px;
+  border-radius: 10px;
+}

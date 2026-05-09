@@ -1,0 +1,71 @@
+.login-container {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: url("https://images.unsplash.com/photo-1521737604893-d14cc237f11d");
+  background-size: cover;
+  background-position: center;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.65);
+  padding: 40px;
+  width: 350px;
+  border-radius: 12px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Inputs */
+.login-card input,
+.login-card select {
+  width: 100%;
+  padding: 10px;
+  margin: 6px 0 2px 0;
+  border: none;
+  border-radius: 6px;
+  background: #e5e7eb;
+  outline: none;
+}
+
+/* Button */
+.login-card button {
+  width: 100%;
+  padding: 12px;
+  background: #0b0b1f;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  margin-top: 12px;
+  cursor: pointer;
+}
+
+/* Error text (ONLY ONE STYLE NOW) */
+.error {
+  color: red;
+  font-size: 12px;
+  margin: 2px 0 8px 0;
+}
+
+/* General login/register text */
+.register {
+  text-align: center;
+  margin-top: 15px;
+  font-size: 13px;
+}
+
+/* Label styling */
+label {
+  display: block;
+  font-size: 13px;
+  margin-top: 10px;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+/* REQUIRED STAR ONLY ON LABELS YOU WANT */
+.required::after {
+  content: " *";
+  color: red;
+}

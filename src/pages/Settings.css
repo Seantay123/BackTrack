@@ -1,0 +1,354 @@
+/* ========================= */
+/* SETTINGS PAGE */
+/* ========================= */
+
+.settings-page {
+  min-height: 100vh;
+
+  padding: 30px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #eef2ff,
+      #fdf2f8
+    );
+
+  transition: 0.3s;
+}
+
+/* ========================= */
+/* HEADER */
+/* ========================= */
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  margin-bottom: 30px;
+}
+
+.settings-header h1 {
+  font-size: 42px;
+  margin-bottom: 6px;
+}
+
+.settings-header p {
+  color: #6b7280;
+}
+
+/* SAVE BUTTON */
+
+.save-btn {
+  border: none;
+
+  padding: 14px 24px;
+
+  border-radius: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #6366f1,
+      #8b5cf6
+    );
+
+  color: white;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: 0.3s;
+}
+
+.save-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* ========================= */
+/* GRID */
+/* ========================= */
+
+.settings-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(auto-fit, minmax(350px, 1fr));
+
+  gap: 24px;
+}
+
+/* ========================= */
+/* CARD */
+/* ========================= */
+
+.settings-card {
+  background: rgba(255,255,255,0.7);
+
+  backdrop-filter: blur(18px);
+
+  border-radius: 30px;
+
+  padding: 26px;
+
+  box-shadow:
+    0 10px 35px rgba(0,0,0,0.06);
+
+  transition: 0.3s;
+}
+
+.settings-card:hover {
+  transform: translateY(-4px);
+}
+
+/* ========================= */
+/* CARD TITLE */
+/* ========================= */
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  margin-bottom: 22px;
+}
+
+.card-title h2 {
+  font-size: 24px;
+}
+
+/* ========================= */
+/* PROFILE */
+/* ========================= */
+
+.profile-upload {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+
+  margin-bottom: 22px;
+}
+
+.profile-upload img {
+  width: 80px;
+  height: 80px;
+
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.upload-btn {
+  border: none;
+
+  padding: 12px 18px;
+
+  border-radius: 14px;
+
+  background: #f3f4f6;
+
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  transition: 0.3s;
+}
+
+.upload-btn:hover {
+  background: #e5e7eb;
+}
+
+/* ========================= */
+/* INPUTS */
+/* ========================= */
+
+.settings-card input,
+.settings-card select {
+  width: 100%;
+
+  padding: 14px 16px;
+
+  border: none;
+
+  border-radius: 16px;
+
+  background: #f3f4f6;
+
+  margin-bottom: 16px;
+
+  outline: none;
+
+  font-size: 14px;
+}
+
+/* ========================= */
+/* TOGGLE ROW */
+/* ========================= */
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  margin-bottom: 24px;
+}
+
+.toggle-row h4 {
+  margin-bottom: 4px;
+}
+
+.toggle-row p {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* ========================= */
+/* SWITCH */
+/* ========================= */
+
+.switch {
+  position: relative;
+
+  width: 56px;
+  height: 30px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+
+  cursor: pointer;
+
+  inset: 0;
+
+  background: #d1d5db;
+
+  border-radius: 999px;
+
+  transition: 0.3s;
+}
+
+.slider::before {
+  content: "";
+
+  position: absolute;
+
+  width: 22px;
+  height: 22px;
+
+  left: 4px;
+  top: 4px;
+
+  border-radius: 50%;
+
+  background: white;
+
+  transition: 0.3s;
+}
+
+.switch input:checked + .slider {
+  background: #6366f1;
+}
+
+.switch input:checked + .slider::before {
+  transform: translateX(26px);
+}
+
+/* ========================= */
+/* BUTTON */
+/* ========================= */
+
+.change-btn {
+  width: 100%;
+
+  border: none;
+
+  padding: 14px;
+
+  border-radius: 16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #6366f1,
+      #8b5cf6
+    );
+
+  color: white;
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: 0.3s;
+}
+
+.change-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* ========================= */
+/* DARK MODE */
+/* ========================= */
+
+.dark {
+  background:
+    linear-gradient(
+      135deg,
+      #0f172a,
+      #111827
+    );
+
+  color: white;
+}
+
+.dark .settings-card {
+  background: rgba(17,24,39,0.75);
+}
+
+.dark input,
+.dark select {
+  background: #1f2937;
+  color: white;
+}
+
+.dark .upload-btn {
+  background: #1f2937;
+  color: white;
+}
+
+.dark .toggle-row p,
+.dark .settings-header p {
+  color: #d1d5db;
+}
+
+/* ========================= */
+/* RESPONSIVE */
+/* ========================= */
+
+@media (max-width: 768px) {
+
+  .settings-page {
+    padding: 16px;
+  }
+
+  .settings-header {
+    flex-direction: column;
+    align-items: flex-start;
+
+    gap: 16px;
+  }
+
+  .settings-header h1 {
+    font-size: 32px;
+  }
+
+}
