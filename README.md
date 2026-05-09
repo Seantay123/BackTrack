@@ -7,24 +7,35 @@ BackTrack is a full-stack web application which employs an interactive and user-
 Team Members
 
 -Seantay Johnson: Database Design and Data Management
+
 -Giovanni Lawrence: System Testing and Debugging w/Documentation
+
 -Tajae Monteque: Backend System and API development
+
 Shanice Thompson: Frontend Development, inteface Design and Implementation
 
 Features 
 
 -User Authentication
+
 -Dashboard Analytics 
+
 -Data Tracking
+
 -Responsive Design 
+
 -REST API Integration
 
 Tech Stack
 
 -Flask
+
 -Vue.js
+
 -MySQL
+
 -Python
+
 -JavaScript
 
 Installation and Setup
