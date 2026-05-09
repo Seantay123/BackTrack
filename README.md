@@ -10,7 +10,7 @@ BackTrack is a full-stack web application which employs an interactive and user-
 
 -Giovanni Lawrence: System Testing and Debugging w/Documentation
 
--Tajae Monteque: Backend System and API development
+-Tajae Montaque: Backend System and API development
 
 Shanice Thompson: Frontend Development, inteface Design and Implementation
 
