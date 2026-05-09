@@ -1,10 +1,10 @@
-COMP3901 BACKTRACK PROJECT
+#COMP3901 BACKTRACK PROJECT
 
-Project Description
+##Project Description
 
 BackTrack is a full-stack web application which employs an interactive and user-friendly platform to assist users in effectively managing, tracking, and analyzing information. To facilitate real-time data management and analytics, the system offers database-driven capabilities, secure user identification, and dynamic interfaces.
 
-Team Members
+##Team Members
 
 -Seantay Johnson: Database Design and Data Management
 
@@ -14,7 +14,7 @@ Team Members
 
 Shanice Thompson: Frontend Development, inteface Design and Implementation
 
-Features 
+##Features 
 
 -User Authentication
 
@@ -26,7 +26,7 @@ Features
 
 -REST API Integration
 
-Tech Stack
+##Tech Stack
 
 -Flask
 
@@ -38,7 +38,7 @@ Tech Stack
 
 -JavaScript
 
-Installation and Setup
+##Installation and Setup
 
 1. Clone the starter repository
 2. Install dependencies(npm install, npm run dev, pip install -r requirements.txt)
