@@ -1,84 +1,92 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, session
 from config import get_db
+from helpers import json_error, json_success, require_login, require_lecturer, log_activity
 
-groups_bp = Blueprint('groups', __name__)
+groups_bp = Blueprint("groups", __name__)
 
-# --- Helpers ---
-def require_login():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Please log in'}), 401
 
-def require_instructor():
-    if session.get('role') not in ('instructor', 'admin'):
-        return jsonify({'error': 'Only instructors can perform this action'}), 403
-
-# --- Routes ---
-@groups_bp.route('/groups/<int:project_id>', methods=['GET'])
+@groups_bp.get("/groups/<int:project_id>")
+@require_login
 def get_groups(project_id):
-    if (resp := require_login()): return resp
-    with get_db() as conn, conn.cursor(dictionary=True) as cur:
-        cur.execute("SELECT * FROM project_groups WHERE project_id = %s", (project_id,))
-        return jsonify(cur.fetchall())
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM project_groups WHERE project_id = ?", (project_id,)).fetchall()
+    return json_success(rows)
 
-@groups_bp.route('/groups/<int:project_id>', methods=['POST'])
+
+@groups_bp.post("/groups/<int:project_id>")
+@require_lecturer
 def create_group(project_id):
-    if (resp := require_login()): return resp
-    if (resp := require_instructor()): return resp
-
     data = request.get_json() or {}
-    if not data.get('group_name'):
-        return jsonify({'error': 'group_name is required'}), 400
-
-    with get_db() as conn, conn.cursor(dictionary=True) as cur:
-        cur.execute("INSERT INTO project_groups (project_id, group_name) VALUES (%s, %s)",
-                    (project_id, data['group_name']))
+    group_name = (data.get("group_name") or "").strip()
+    if not group_name:
+        return json_error("group_name is required", 400)
+    with get_db() as conn:
+        project = conn.execute("SELECT project_id FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+        if not project:
+            return json_error("Project not found", 404)
+        cur = conn.execute(
+            "INSERT INTO project_groups (project_id, group_name) VALUES (?, ?)",
+            (project_id, group_name),
+        )
         conn.commit()
-        return jsonify({'message': 'Group created', 'group_id': cur.lastrowid}), 201
+        group_id = cur.lastrowid
+    log_activity(session["user_id"], f"Created group: {group_name}", f"group_{group_id}")
+    return json_success({"group_id": group_id}, "Group created", 201)
 
-@groups_bp.route('/groups/<int:group_id>/members', methods=['POST'])
+
+@groups_bp.post("/groups/<int:group_id>/members")
+@require_lecturer
 def add_member(group_id):
-    if (resp := require_login()): return resp
-    if (resp := require_instructor()): return resp
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    user_id = data.get("user_id")
+    if not email and not user_id:
+        return json_error("email or user_id is required", 400)
 
-    email = (request.get_json() or {}).get('email', '').strip().lower()
-    if not email:
-        return jsonify({'error': 'email is required'}), 400
-
-    with get_db() as conn, conn.cursor(dictionary=True) as cur:
-        cur.execute("SELECT user_id, name FROM users WHERE email = %s", (email,))
-        user = cur.fetchone()
+    with get_db() as conn:
+        group = conn.execute("SELECT group_id FROM project_groups WHERE group_id = ?", (group_id,)).fetchone()
+        if not group:
+            return json_error("Group not found", 404)
+        if user_id:
+            user = conn.execute("SELECT user_id, name FROM users WHERE user_id = ?", (user_id,)).fetchone()
+        else:
+            user = conn.execute("SELECT user_id, name FROM users WHERE email = ?", (email,)).fetchone()
         if not user:
-            return jsonify({'error': 'User not found'}), 404
+            return json_error("User not found", 404)
+        try:
+            conn.execute(
+                "INSERT INTO group_members (group_id, user_id) VALUES (?, ?)",
+                (group_id, user["user_id"]),
+            )
+            conn.commit()
+        except Exception:
+            return json_error("User is already in this group", 409)
+    log_activity(session["user_id"], f"Added {user['name']} to group", f"group_{group_id}")
+    return json_success({"user_id": user["user_id"]}, f"{user['name']} added to group", 201)
 
-        cur.execute("SELECT 1 FROM group_members WHERE group_id = %s AND user_id = %s",
-                    (group_id, user['user_id']))
-        if cur.fetchone():
-            return jsonify({'error': 'User is already in this group'}), 400
 
-        cur.execute("INSERT INTO group_members (group_id, user_id) VALUES (%s, %s)",
-                    (group_id, user['user_id']))
-        conn.commit()
-        return jsonify({'message': f'{user["name"]} added to group'}), 201
-
-@groups_bp.route('/groups/<int:group_id>/members', methods=['GET'])
+@groups_bp.get("/groups/<int:group_id>/members")
+@require_login
 def get_members(group_id):
-    if (resp := require_login()): return resp
-    with get_db() as conn, conn.cursor(dictionary=True) as cur:
-        cur.execute("""
-            SELECT u.user_id, u.name, u.email, u.role
+    with get_db() as conn:
+        rows = conn.execute(
+            """
+            SELECT u.user_id, u.name, u.email, u.role, gm.joined_at
             FROM group_members gm
             JOIN users u ON gm.user_id = u.user_id
-            WHERE gm.group_id = %s
-        """, (group_id,))
-        return jsonify(cur.fetchall())
+            WHERE gm.group_id = ?
+            ORDER BY u.name
+            """,
+            (group_id,),
+        ).fetchall()
+    return json_success(rows)
 
-@groups_bp.route('/groups/<int:group_id>/members/<int:uid>', methods=['DELETE'])
-def remove_member(group_id, uid):
-    if (resp := require_login()): return resp
-    if (resp := require_instructor()): return resp
 
-    with get_db() as conn, conn.cursor(dictionary=True) as cur:
-        cur.execute("DELETE FROM group_members WHERE group_id = %s AND user_id = %s",
-                    (group_id, uid))
+@groups_bp.delete("/groups/<int:group_id>/members/<int:user_id>")
+@require_lecturer
+def remove_member(group_id, user_id):
+    with get_db() as conn:
+        conn.execute("DELETE FROM group_members WHERE group_id = ? AND user_id = ?", (group_id, user_id))
         conn.commit()
-        return jsonify({'message': 'Member removed from group'})
+    log_activity(session["user_id"], "Removed member from group", f"group_{group_id}")
+    return json_success(message="Member removed from group")
