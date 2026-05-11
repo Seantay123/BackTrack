@@ -12,7 +12,7 @@ def get_db():
     conn = mysql.connector.connect(
         host="localhost",
         user="root",
-        password="Dameka41",       
+        password="Dameka@41",       
         database="backtrack_db"
     )
     return conn
