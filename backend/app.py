@@ -32,6 +32,11 @@ def create_app():
     app.register_blueprint(reports_bp, url_prefix="/api")
     app.register_blueprint(notification_routes, url_prefix="/api")
 
+    @app.route("/")
+    def home():
+        return "BackTrack Running"
+
+
     @app.get("/api/health")
     def health():
         return {"success": True, "message": "BackTrack backend running"}
