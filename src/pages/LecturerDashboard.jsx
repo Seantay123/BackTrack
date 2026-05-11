@@ -1,8 +1,8 @@
-import "./TeacherDashboard.css";
+import "./LecturerDashboard.css";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function TeacherDashboard() {
+export default function LecturerDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
