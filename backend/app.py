@@ -173,7 +173,6 @@ def get_groups(pid):
     conn.close()
     return jsonify(groups)
 
-
 # POST /projects/<pid>/groups  — create a group (instructor/admin only)
 @app.route("/projects/<int:pid>/groups", methods=["POST"])
 def create_group(pid):
@@ -182,20 +181,36 @@ def create_group(pid):
     if session["role"] not in ("instructor", "admin"):
         return jsonify({"error": "Only instructors can create groups"}), 403
 
-    data = request.get_json()
+    try:
+        data = request.get_json()
+        if not data or "group_name" not in data:
+            return jsonify({"error": "Group name is required"}), 400
 
-    conn = get_db()
-    cur  = conn.cursor(dictionary=True)
-    cur.execute(
-        "INSERT INTO project_groups (project_id, group_name) VALUES (%s, %s)",
-        (pid, data["group_name"])
-    )
-    conn.commit()
-    group_id = cur.lastrowid
-    cur.close()
-    conn.close()
-    return jsonify({"message": "Group created", "group_id": group_id}), 201
-
+        conn = get_db()
+        cur = conn.cursor(dictionary=True)
+        
+        # Check if project exists
+        cur.execute("SELECT * FROM projects WHERE project_id = %s", (pid,))
+        project = cur.fetchone()
+        if not project:
+            cur.close()
+            conn.close()
+            return jsonify({"error": f"Project with id {pid} does not exist"}), 404
+        
+        cur.execute(
+            "INSERT INTO project_groups (project_id, group_name) VALUES (%s, %s)",
+            (pid, data["group_name"])
+        )
+        conn.commit()
+        group_id = cur.lastrowid
+        cur.close()
+        conn.close()
+        
+        return jsonify({"message": "Group created", "group_id": group_id}), 201
+        
+    except Exception as e:
+        print(f"Error creating group: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 # POST /groups/<gid>/members  — add a student to a group by email
 @app.route("/groups/<int:gid>/members", methods=["POST"])
@@ -722,37 +737,6 @@ def get_current_user():
         "name": session.get("name"),
         "role": session.get("role")
     })
-
-@app.route("/reports/summary", methods=["GET"])
-def generate_summary_report():
-    if "user_id" not in session:
-        return jsonify({"error": "Please log in"}), 401
-    if session["role"] not in ("instructor", "admin"):
-        return jsonify({"error": "Access denied"}), 403
-    
-    conn = get_db()
-    cur = conn.cursor(dictionary=True)
-    
-    # Get all projects with stats
-    cur.execute("""
-        SELECT 
-            p.project_id,
-            p.project_name,
-            COUNT(DISTINCT pg.group_id) as group_count,
-            COUNT(DISTINCT gm.user_id) as student_count,
-            COUNT(t.task_id) as total_tasks,
-            SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed_tasks
-        FROM projects p
-        LEFT JOIN project_groups pg ON p.project_id = pg.project_id
-        LEFT JOIN group_members gm ON pg.group_id = gm.group_id
-        LEFT JOIN tasks t ON pg.group_id = t.group_id
-        GROUP BY p.project_id
-    """)
-    report = cur.fetchall()
-    cur.close()
-    conn.close()
-    
-    return jsonify(report)
 
 @app.route('/')
 def home():
