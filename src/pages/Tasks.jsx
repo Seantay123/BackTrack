@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import "./Tasks.css";
 
 export default function Tasks() {
   const [activeTab, setActiveTab] = useState("My Tasks");

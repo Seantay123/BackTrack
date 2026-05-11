@@ -1,0 +1,219 @@
+/* Tasks.css - Professional Dashboard Styling */
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 30px;
+  background: #f4f7fb;
+  min-height: 100vh;
+}
+
+/* Tab Navigation */
+.tab-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 30px;
+  background: white;
+  padding: 8px;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tab-header button {
+  padding: 12px 24px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.tab-header button:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.tab-header button.active {
+  background: #111827;
+  color: white;
+}
+
+/* Content Area */
+.content-area {
+  background: white;
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.content-area h2 {
+  font-size: 24px;
+  color: #111827;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.content-area h3 {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Cards */
+.card {
+  background: #f9fafb;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.card h3 {
+  font-size: 18px;
+  color: #111827;
+  margin-bottom: 10px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.card h4 {
+  font-size: 16px;
+  color: #111827;
+  margin: 0;
+}
+
+.card p {
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+/* Empty State Styling - This fixes your "No tasks" message */
+.card p:last-child {
+  margin-bottom: 0;
+}
+
+.card p strong {
+  color: #374151;
+}
+
+/* Buttons */
+button {
+  background: #111827;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+button:hover:not(:disabled) {
+  background: #374151;
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Group Selector */
+.group-selector {
+  background: #f9fafb;
+  padding: 15px 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  border: 1px solid #e5e7eb;
+}
+
+.group-selector label {
+  font-weight: 500;
+  color: #374151;
+  margin-right: 10px;
+}
+
+.group-selector select {
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  font-size: 14px;
+  color: #111827;
+  cursor: pointer;
+}
+
+/* Instruction Box */
+.instruction-box {
+  background: #eef2ff;
+  border-left: 4px solid #111827;
+  padding: 15px 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  color: #374151;
+  font-size: 14px;
+}
+
+/* Input Fields */
+input[type="text"] {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  border-color: #111827;
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1);
+}
+
+/* Score Display */
+.card h3:first-child {
+  font-size: 28px;
+  color: #111827;
+  margin-bottom: 20px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 15px;
+  }
+  
+  .tab-header {
+    flex-wrap: wrap;
+  }
+  
+  .tab-header button {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+  
+  .content-area {
+    padding: 20px;
+  }
+}
