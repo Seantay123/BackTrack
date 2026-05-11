@@ -679,7 +679,7 @@ def dashboard():
     conn.close()
     return jsonify(groups)
 
-# Get all groups (for teacher dashboard)
+# Get all groups (for lecturer dashboard)
 @app.route("/groups/all", methods=["GET"])
 def get_all_groups():
     if "user_id" not in session:
@@ -723,6 +723,36 @@ def get_current_user():
         "role": session.get("role")
     })
 
+@app.route("/reports/summary", methods=["GET"])
+def generate_summary_report():
+    if "user_id" not in session:
+        return jsonify({"error": "Please log in"}), 401
+    if session["role"] not in ("instructor", "admin"):
+        return jsonify({"error": "Access denied"}), 403
+    
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    
+    # Get all projects with stats
+    cur.execute("""
+        SELECT 
+            p.project_id,
+            p.project_name,
+            COUNT(DISTINCT pg.group_id) as group_count,
+            COUNT(DISTINCT gm.user_id) as student_count,
+            COUNT(t.task_id) as total_tasks,
+            SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed_tasks
+        FROM projects p
+        LEFT JOIN project_groups pg ON p.project_id = pg.project_id
+        LEFT JOIN group_members gm ON pg.group_id = gm.group_id
+        LEFT JOIN tasks t ON pg.group_id = t.group_id
+        GROUP BY p.project_id
+    """)
+    report = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    return jsonify(report)
 
 @app.route('/')
 def home():

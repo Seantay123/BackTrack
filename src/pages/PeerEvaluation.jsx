@@ -1,13 +1,4 @@
-export default function PeerEvaluation() {
-  return (
-    <div className="container">
-      <h1>Peer Evaluation</h1>
+import PeerEvaluation from "./pages/PeerEvaluation";
 
-      <div className="card">
-        <input type="number" placeholder="1–5 rating" min="1" max="5" />
-        <textarea placeholder="Feedback..." />
-        <button>Submit</button>
-      </div>
-    </div>
-  );
-}
+// In your routes:
+<Route path="peer" element={<PeerEvaluation />} />
