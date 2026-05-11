@@ -678,6 +678,18 @@ def dashboard():
     conn.close()
     return jsonify(groups)
 
+@app.route('/')
+def home():
+    return jsonify({
+        "message": "BackTrack API is running",
+        "status": "online",
+        "endpoints": {
+            "register": "POST /register",
+            "login": "POST /login",
+            "projects": "GET /projects",
+            "dashboard": "GET /dashboard"
+        }
+    })
 
 # ──────────────────────────────────────────────
 if __name__ == "__main__":
