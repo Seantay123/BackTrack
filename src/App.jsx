@@ -33,6 +33,27 @@ function Layout() {
   );
 }
 
+function Layout() {
+  console.log('Layout rendered, current path:', window.location.pathname);
+  
+  return (
+    <div className="app-layout">
+      <Sidebar />
+      <Navbar />
+      <div className="main-content">
+        <Routes>
+          <Route path="student" element={<StudentDashboard />} />
+          <Route path="lecturer" element={<LecturerDashboard />} />
+          <Route path="tasks" element={<Tasks />} />
+          <Route path="peer" element={<PeerEvaluation />} />
+          <Route path="analytics" element={<Analytics />} />
+          <Route path="settings" element={<Settings />} />
+        </Routes>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>

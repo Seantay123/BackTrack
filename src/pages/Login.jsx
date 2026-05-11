@@ -54,8 +54,8 @@ export default function Login() {
         const userRole = data.user.role;
         if (userRole === 'student') {
           navigate('/student');
-        } else if (userRole === 'instructor') {
-          navigate('/instructor');
+        } else if (userRole === 'lecturer') {
+          navigate('/lecturer');
         } else if (userRole === 'admin') {
           navigate('/admin');
         } else {
@@ -98,7 +98,7 @@ export default function Login() {
         <label>Role *</label>
         <select value={role} onChange={(e) => setRole(e.target.value)}>
           <option value="student">Student</option>
-          <option value="lecturer">Instructor</option>
+          <option value="lecturer">Lecturer</option>
           <option value="admin">Admin</option>
         </select>
 
