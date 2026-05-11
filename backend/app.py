@@ -247,6 +247,7 @@ def get_members(gid):
     conn.close()
     return jsonify(members)
 
+
 # TASK ROUTES
 
 # GET /groups/<gid>/tasks  — list all tasks in a group
@@ -677,6 +678,51 @@ def dashboard():
     cur.close()
     conn.close()
     return jsonify(groups)
+
+# Get all groups (for teacher dashboard)
+@app.route("/groups/all", methods=["GET"])
+def get_all_groups():
+    if "user_id" not in session:
+        return jsonify({"error": "Please log in"}), 401
+    if session["role"] not in ("instructor", "admin"):
+        return jsonify({"error": "Access denied"}), 403
+    
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM project_groups")
+    groups = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(groups)
+
+# Get all students (for teacher dashboard)
+@app.route("/users/students", methods=["GET"])
+def get_students():
+    if "user_id" not in session:
+        return jsonify({"error": "Please log in"}), 401
+    if session["role"] not in ("instructor", "admin"):
+        return jsonify({"error": "Access denied"}), 403
+    
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM users WHERE role = 'student'")
+    students = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(students)
+
+# Get current user info
+@app.route("/api/me", methods=["GET"])
+def get_current_user():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    return jsonify({
+        "user_id": session["user_id"],
+        "name": session.get("name"),
+        "role": session.get("role")
+    })
+
 
 @app.route('/')
 def home():

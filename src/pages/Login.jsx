@@ -10,14 +10,14 @@ export default function Login() {
     email: "",
     password: ""
   });
-
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     let err = {};
 
     if (!form.email) err.email = "Information is required";
@@ -33,20 +33,43 @@ export default function Login() {
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("users")) || [];
+    setLoading(true);
+    setErrors({});
 
-    const user = users.find(
-      (u) => u.email === form.email && u.password === form.password
-    );
-
-    if (!user) {
-      setErrors({
-        general: "User not registered. Please register first."
+    try {
+      const response = await fetch('http://localhost:5000/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: form.email, password: form.password })
       });
-      return;
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Save user data for dashboard
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Redirect based on role from backend (not from dropdown)
+        const userRole = data.user.role;
+        if (userRole === 'student') {
+          navigate('/student');
+        } else if (userRole === 'instructor') {
+          navigate('/instructor');
+        } else if (userRole === 'admin') {
+          navigate('/admin');
+        } else {
+          navigate('/dashboard');
+        }
+      } else {
+        setErrors({ general: data.error || "Login failed" });
+      }
+    } catch (error) {
+      console.error('Login failed:', error);
+      setErrors({ general: "Cannot connect to server. Make sure backend is running on http://localhost:5000" });
+    } finally {
+      setLoading(false);
     }
-
-    navigate(`/${role}`);
   };
 
   return (
@@ -75,7 +98,7 @@ export default function Login() {
         <label>Role *</label>
         <select value={role} onChange={(e) => setRole(e.target.value)}>
           <option value="student">Student</option>
-          <option value="lecturer">Lecturer</option>
+          <option value="lecturer">Instructor</option>
           <option value="admin">Admin</option>
         </select>
 
@@ -85,7 +108,9 @@ export default function Login() {
           <p className="error general">{errors.general}</p>
         )}
 
-        <button onClick={handleLogin}>Login</button>
+        <button onClick={handleLogin} disabled={loading}>
+          {loading ? "Logging in..." : "Login"}
+        </button>
 
         <p className="register">
           Don’t have an account? <Link to="/register">Register</Link>

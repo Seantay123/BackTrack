@@ -1,52 +1,191 @@
-
 import "./TeacherDashboard.css";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function TeacherDashboard() {
-  const dashboardData = {
-    lecturer: "Dr. Sarah Johnson",
-    role: "Senior Lecturer - Computer Science",
-    totalProjects: 12,
-    totalGroups: 28,
-    totalStudents: 143,
-    tasksCompleted: 94,
-    totalTasks: 120,
-    pendingReviews: 8,
-    completionRate: 78,
-    recentActivity: [
-      "Group 10 submitted milestone report",
-      "Database Project deadline updated",
-      "3 assignments graded today",
-    ],
-    groups: [
-      {
-        id: 1,
-        name: "Group 10",
-        project: "Web Development Final Project",
-        progress: 88,
-        members: 4,
-        deadline: "May 15, 2026",
-        status: "On Track",
-      },
-      {
-        id: 2,
-        name: "Group 3",
-        project: "Database Design Assignment",
-        progress: 67,
-        members: 3,
-        deadline: "May 20, 2026",
-        status: "Pending Review",
-      },
-      {
-        id: 3,
-        name: "Group 7",
-        project: "AI Research Presentation",
-        progress: 94,
-        members: 5,
-        deadline: "May 10, 2026",
-        status: "Completed",
-      },
-    ],
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState({
+    lecturer: "",
+    role: "",
+    totalProjects: 0,
+    totalGroups: 0,
+    totalStudents: 0,
+    tasksCompleted: 0,
+    totalTasks: 0,
+    pendingReviews: 0,
+    completionRate: 0,
+    recentActivity: [],
+    groups: []
+  });
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    // Check if user is logged in
+    const storedUser = localStorage.getItem('user');
+    if (!storedUser) {
+      navigate('/');
+      return;
+    }
+    
+    const userData = JSON.parse(storedUser);
+    setUser(userData);
+    
+    // Check if user has instructor or admin role
+    if (userData.role !== 'instructor' && userData.role !== 'admin') {
+      navigate('/student');
+      return;
+    }
+    
+    fetchTeacherData();
+  }, [navigate]);
+
+  const fetchTeacherData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch projects
+      const projectsResponse = await fetch('http://localhost:5000/projects', {
+        credentials: 'include'
+      });
+      const projects = await projectsResponse.json();
+      
+      // Fetch all groups (you may need to create this endpoint)
+      const groupsResponse = await fetch('http://localhost:5000/groups/all', {
+        credentials: 'include'
+      });
+      const groups = await groupsResponse.json();
+      
+      // Fetch all students
+      const studentsResponse = await fetch('http://localhost:5000/users/students', {
+        credentials: 'include'
+      });
+      const students = await studentsResponse.json();
+      
+      // Calculate statistics
+      const totalProjects = projects.length;
+      const totalGroups = groups.length;
+      const totalStudents = students.length;
+      
+      // Calculate task statistics
+      let totalTasks = 0;
+      let tasksCompleted = 0;
+      let pendingReviews = 0;
+      const recentActivity = [];
+      const groupData = [];
+      
+      for (const group of groups) {
+        // Fetch tasks for each group
+        const tasksResponse = await fetch(`http://localhost:5000/groups/${group.group_id}/tasks`, {
+          credentials: 'include'
+        });
+        const tasks = await tasksResponse.json();
+        
+        totalTasks += tasks.length;
+        tasksCompleted += tasks.filter(t => t.status === 'completed').length;
+        pendingReviews += tasks.filter(t => t.status === 'submitted').length;
+        
+        // Get project info for this group
+        const project = projects.find(p => p.project_id === group.project_id);
+        
+        // Calculate group progress
+        const groupProgress = tasks.length > 0 
+          ? Math.round((tasks.filter(t => t.status === 'completed').length / tasks.length) * 100)
+          : 0;
+        
+        // Get group members count
+        const membersResponse = await fetch(`http://localhost:5000/groups/${group.group_id}/members`, {
+          credentials: 'include'
+        });
+        const members = await membersResponse.json();
+        
+        groupData.push({
+          id: group.group_id,
+          name: group.group_name,
+          project: project?.project_name || "Unknown Project",
+          progress: groupProgress,
+          members: members.length,
+          deadline: project?.end_date || "No deadline",
+          status: groupProgress === 100 ? "Completed" : 
+                  groupProgress > 0 ? "On Track" : "Pending Review"
+        });
+        
+        // Add to recent activity (last 3 groups)
+        if (recentActivity.length < 3) {
+          recentActivity.push(`${group.group_name} is at ${groupProgress}% completion`);
+        }
+      }
+      
+      // Calculate completion rate
+      const completionRate = totalTasks > 0 
+        ? Math.round((tasksCompleted / totalTasks) * 100)
+        : 0;
+      
+      // Get user info from session
+      const userInfo = await fetch('http://localhost:5000/api/me', {
+        credentials: 'include'
+      });
+      const userData = await userInfo.json();
+      
+      setDashboardData({
+        lecturer: userData.name || user?.name || "Instructor",
+        role: userData.role === 'instructor' ? "Course Instructor" : "Administrator",
+        totalProjects,
+        totalGroups,
+        totalStudents,
+        tasksCompleted,
+        totalTasks,
+        pendingReviews,
+        completionRate,
+        recentActivity: recentActivity.length > 0 ? recentActivity : ["No recent activity"],
+        groups: groupData
+      });
+      
+    } catch (err) {
+      console.error('Error fetching teacher data:', err);
+      setError('Failed to load dashboard data. Make sure backend is running.');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('http://localhost:5000/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      localStorage.removeItem('user');
+      navigate('/');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="dashboard-container">
+        <div style={{ textAlign: 'center', padding: '50px' }}>
+          <h2>Loading dashboard...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="dashboard-container">
+        <div style={{ textAlign: 'center', padding: '50px', color: 'red' }}>
+          <h2>Error</h2>
+          <p>{error}</p>
+          <button onClick={() => window.location.reload()}>Retry</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-container">
@@ -57,7 +196,7 @@ export default function TeacherDashboard() {
           <p>Smart Project Monitoring System</p>
         </div>
 
-        <button className="logout-btn">Logout</button>
+        <button className="logout-btn" onClick={handleLogout}>Logout</button>
       </div>
 
       {/* HERO SECTION */}

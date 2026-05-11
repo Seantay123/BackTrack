@@ -11,14 +11,14 @@ export default function Register() {
     email: "",
     password: ""
   });
-
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     let err = {};
 
     if (!form.name) err.name = "Information is required";
@@ -36,19 +36,35 @@ export default function Register() {
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("users")) || [];
+    setLoading(true);
+    setErrors({});
 
-    const exists = users.find((u) => u.email === form.email);
-
-    if (exists) {
-      setErrors({ email: "User already exists. Please login." });
-      return;
+    try {
+      const response = await fetch('http://localhost:5000/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          role: role === "lecturer" ? "instructor" : role  // Map 'lecturer' to 'instructor'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert("Registration successful! Please login.");
+        navigate("/");
+      } else {
+        setErrors({ general: data.error || "Registration failed" });
+      }
+    } catch (error) {
+      console.error('Registration failed:', error);
+      setErrors({ general: "Cannot connect to server. Make sure backend is running on http://localhost:5000" });
+    } finally {
+      setLoading(false);
     }
-
-    users.push({ ...form, role });
-    localStorage.setItem("users", JSON.stringify(users));
-
-    navigate("/");
   };
 
   return (
@@ -76,13 +92,17 @@ export default function Register() {
         <label>Role *</label>
         <select value={role} onChange={(e) => setRole(e.target.value)}>
           <option value="student">Student</option>
-          <option value="lecturer">Lecturer</option>
+          <option value="lecturer">Instructor</option>
           <option value="admin">Admin</option>
         </select>
 
         {errors.role && <p className="error">{errors.role}</p>}
+        
+        {errors.general && <p className="error general">{errors.general}</p>}
 
-        <button onClick={handleRegister}>Register</button>
+        <button onClick={handleRegister} disabled={loading}>
+          {loading ? "Registering..." : "Register"}
+        </button>
 
         <p className="register">
           Already have an account? <Link to="/">Login</Link>
