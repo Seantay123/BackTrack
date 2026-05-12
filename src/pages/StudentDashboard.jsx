@@ -44,8 +44,7 @@ export default function StudentDashboard() {
         if (projectsData && projectsData.length > 0) {
           const firstProject = projectsData[0];
           
-          // You'll need to get groups for this project
-          // For now, we'll fetch from a groups endpoint
+          // Fetch groups for this project
           const groupsResponse = await fetch(`http://localhost:5000/projects/${firstProject.project_id}/groups`, {
             credentials: 'include'
           });
@@ -128,14 +127,13 @@ export default function StudentDashboard() {
           <FaCog className="icon" onClick={() => setShowSettings(true)} title="Settings" />
 
           <div className="profile">
-            <img src="https://i.pravatar.cc/150?img=12" alt="" />
             <div className="profile-info">
-              <h4>{user?.name || dashboardData?.[0]?.group_name || "Student"}</h4>
+              <h4>{user?.name || "Student"}</h4>
               <p>{user?.role || "Student"}</p>
             </div>
           </div>
-        </div>
-      </div>
+        </div> {/* This closes topbar-right */}
+      </div> {/* This closes topbar */}
 
       {/* BODY */}
       <div className="layout">
@@ -159,7 +157,7 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* TASKS - Now showing real tasks from backend */}
+          {/* TASKS */}
           {filteredTasks.length > 0 ? (
             filteredTasks.map((task) => (
               <div className="task-card" key={task.task_id}>
@@ -220,7 +218,7 @@ export default function StudentDashboard() {
             </div>
           </div>
         </div>
-      </div>
+      </div> {/* This closes layout */}
 
       {/* SETTINGS MODAL */}
       {showSettings && (
@@ -231,6 +229,6 @@ export default function StudentDashboard() {
           </div>
         </div>
       )}
-    </div>
+    </div> // This closes dashboard
   );
 }
