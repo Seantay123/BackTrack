@@ -14,6 +14,7 @@ export default function StudentDashboard() {
   const [fileLink, setFileLink] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [user, setUser] = useState(null);
@@ -22,19 +23,62 @@ export default function StudentDashboard() {
   const [members, setMembers] = useState([]);
   const [myGroups, setMyGroups] = useState([]);
 
-  useEffect(() => {
-    loadUserData();
-  }, []);
+  // Fetch fresh user data from backend to verify role
+  const fetchUserFromBackend = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/me', {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Not authenticated');
+      }
+      
+      const userData = await response.json();
+      console.log('Backend user data:', userData);
+      
+      // CRITICAL FIX: Check if user is a student
+      if (userData.role !== 'student') {
+        console.error('User role is not student:', userData.role);
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        // Redirect to appropriate dashboard
+        if (userData.role === 'lecturer' || userData.role === 'admin' || userData.role === 'instructor') {
+          navigate('/lecturer');
+        } else {
+          navigate('/');
+        }
+        return null;
+      }
+      
+      // Update localStorage with correct data
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      return userData;
+      
+    } catch (err) {
+      console.error('Error fetching user:', err);
+      setError('Failed to load user data. Please login again.');
+      setTimeout(() => {
+        localStorage.removeItem('user');
+        navigate('/');
+      }, 2000);
+      return null;
+    }
+  };
 
   const loadUserData = async () => {
     try {
       setLoading(true);
+      setError(null);
       
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+      // First verify user is a student
+      const currentUser = await fetchUserFromBackend();
+      if (!currentUser) {
+        return;
       }
       
+      // Fetch projects
       const projectsRes = await fetch('http://localhost:5000/projects', {
         credentials: 'include'
       });
@@ -57,7 +101,10 @@ export default function StudentDashboard() {
             credentials: 'include'
           });
           const tasks = await tasksRes.json();
-          allTasks = [...allTasks, ...tasks];
+          
+          // Only show tasks assigned to current user
+          const userTasks = tasks.filter(task => task.assigned_to === currentUser.user_id);
+          allTasks = [...allTasks, ...userTasks];
           
           const membersRes = await fetch(`http://localhost:5000/groups/${group.group_id}/members`, {
             credentials: 'include'
@@ -80,53 +127,66 @@ export default function StudentDashboard() {
   };
 
   const handleSubmitTask = async () => {
-  if (!fileLink) {
-    setSubmitMessage("Please provide a file link");
-    return;
-  }
-  
-  setSubmitting(true);
-  setSubmitMessage("");
-  
-  try {
-    const response = await fetch(`http://localhost:5000/tasks/${selectedTask.task_id}/submit`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ file_link: fileLink })
-    });
+    if (!fileLink) {
+      setSubmitMessage("Please provide a file link");
+      return;
+    }
     
-    if (response.ok) {
-      setSubmitMessage("✅ Task submitted successfully!");
+    setSubmitting(true);
+    setSubmitMessage("");
+    
+    try {
+      const response = await fetch(`http://localhost:5000/tasks/${selectedTask.task_id}/submit`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          status: 'submitted',
+          file_link: fileLink 
+        })
+      });
       
-      // Update the task status locally
-      setTasks(prevTasks => 
-        prevTasks.map(task => 
+      if (response.ok) {
+        // Update the task status locally IMMEDIATELY
+        const updatedTasks = tasks.map(task => 
           task.task_id === selectedTask.task_id 
             ? { ...task, status: 'submitted' }
             : task
-        )
-      );
-      
-      setTimeout(() => {
-        setShowSubmitModal(false);
-        setSelectedTask(null);
-        setFileLink("");
-        setSubmitMessage("");
-        // Refresh data from backend to ensure accuracy
-        loadUserData();
-      }, 1500);
-    } else {
-      const error = await response.json();
-      setSubmitMessage(`❌ Error: ${error.error}`);
+        );
+        setTasks(updatedTasks);
+        
+        // Calculate updated progress
+        const completedOrSubmitted = updatedTasks.filter(t => t.status === 'completed' || t.status === 'submitted').length;
+        const newProgress = Math.round((completedOrSubmitted / updatedTasks.length) * 100);
+        
+        setSubmitMessage("✅ Task submitted successfully!");
+        setToastMessage(`✅ "${selectedTask.title}" submitted! Progress: ${newProgress}%`);
+        
+        // Close modal after delay
+        setTimeout(() => {
+          setShowSubmitModal(false);
+          setSelectedTask(null);
+          setFileLink("");
+          setSubmitMessage("");
+          
+          // Refresh in background to sync with backend
+          setTimeout(() => {
+            loadUserData();
+          }, 500);
+          
+          setTimeout(() => setToastMessage(""), 3000);
+        }, 1500);
+      } else {
+        const error = await response.json();
+        setSubmitMessage(`❌ Error: ${error.error || 'Submission failed'}`);
+      }
+    } catch (err) {
+      console.error('Submission error:', err);
+      setSubmitMessage("❌ Failed to submit task");
+    } finally {
+      setSubmitting(false);
     }
-  } catch (err) {
-    console.error('Submission error:', err);
-    setSubmitMessage("❌ Failed to submit task");
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
 
   const openSubmitModal = (task) => {
     if (task.status === 'pending') {
@@ -134,9 +194,12 @@ export default function StudentDashboard() {
       setShowSubmitModal(true);
       setFileLink("");
       setSubmitMessage("");
-    } else {
-      setSubmitMessage(`Task already ${task.status}`);
-      setTimeout(() => setSubmitMessage(""), 2000);
+    } else if (task.status === 'submitted') {
+      setToastMessage("⏳ Task is already submitted and pending review");
+      setTimeout(() => setToastMessage(""), 2000);
+    } else if (task.status === 'completed') {
+      setToastMessage("✅ Task is already completed!");
+      setTimeout(() => setToastMessage(""), 2000);
     }
   };
 
@@ -148,8 +211,18 @@ export default function StudentDashboard() {
 
   const calculateProgress = () => {
     if (tasks.length === 0) return 0;
-    const completedTasks = tasks.filter(t => t.status === 'completed').length;
-    return Math.round((completedTasks / tasks.length) * 100);
+    // Consider both 'completed' AND 'submitted' as progress
+    const completedOrSubmitted = tasks.filter(t => t.status === 'completed' || t.status === 'submitted').length;
+    return Math.round((completedOrSubmitted / tasks.length) * 100);
+  };
+
+  const getProgressMessage = () => {
+    const progress = calculateProgress();
+    if (progress === 100) return "🎉 All tasks completed! Great job!";
+    if (progress >= 75) return "🌟 Almost there! Keep going!";
+    if (progress >= 50) return "📈 Halfway there! Good progress!";
+    if (progress >= 25) return "💪 Making progress! Stay focused!";
+    return "🚀 Start working on your tasks!";
   };
 
   const handleLogout = async () => {
@@ -158,10 +231,22 @@ export default function StudentDashboard() {
     window.location.href = '/';
   };
 
+  // Refresh data
+  const refreshData = () => {
+    loadUserData();
+    setToastMessage("🔄 Dashboard refreshed!");
+    setTimeout(() => setToastMessage(""), 2000);
+  };
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
   if (loading) {
     return (
       <div className="dashboard">
         <div style={{ textAlign: 'center', padding: '50px' }}>
+          <div className="loading-spinner"></div>
           <h2>Loading your dashboard...</h2>
         </div>
       </div>
@@ -180,8 +265,17 @@ export default function StudentDashboard() {
     );
   }
 
+  const progress = calculateProgress();
+
   return (
     <div className={`dashboard ${darkMode ? "dark" : ""}`}>
+      {/* TOAST MESSAGE */}
+      {toastMessage && (
+        <div className="toast-message">
+          {toastMessage}
+        </div>
+      )}
+
       {/* TOPBAR */}
       <div className="topbar">
         <div className="nav-tabs">
@@ -194,6 +288,9 @@ export default function StudentDashboard() {
         <div className="topbar-right">
           <FaBell className="icon" />
           <FaMoon className="icon" onClick={() => setDarkMode(!darkMode)} />
+          <button className="refresh-btn-header" onClick={refreshData} title="Refresh">
+            🔄
+          </button>
           <FaCog className="icon" onClick={() => setShowSettings(true)} title="Settings" />
           <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>Logout</button>
           
@@ -212,15 +309,9 @@ export default function StudentDashboard() {
         <div className="sidebar">
           <div className="sidebar-header">
             <h2>My Tasks</h2>
-            <button className="add-btn" onClick={() => {
-              const pendingTasks = tasks.filter(t => t.status === 'pending');
-              if (pendingTasks.length > 0) {
-                openSubmitModal(pendingTasks[0]);
-              } else {
-                setSubmitMessage("No pending tasks to submit");
-                setTimeout(() => setSubmitMessage(""), 2000);
-              }
-            }}>+</button>
+            <button className="refresh-btn-small" onClick={refreshData} title="Refresh tasks">
+              🔄
+            </button>
           </div>
 
           <div className="filters">
@@ -267,6 +358,7 @@ export default function StudentDashboard() {
           ) : (
             <div style={{ padding: '20px', textAlign: 'center' }}>
               <p>No tasks assigned yet</p>
+              <button className="refresh-btn-small" onClick={refreshData}>Refresh</button>
             </div>
           )}
         </div>
@@ -278,31 +370,75 @@ export default function StudentDashboard() {
           <div className="grid">
             <div className="card">
               <h3>Welcome back 👋</h3>
-              <p>{projects[0]?.project_name || "No projects assigned"}</p>
-              <span>Group {myGroups[0]?.group_name || "No group"}</span>
+              <p>{user?.name || "Student"}</p>
+              <p style={{ fontSize: '14px', color: '#666' }}>Group: {myGroups[0]?.group_name || "No group"}</p>
+              <span>Role: {user?.role || "Student"}</span>
             </div>
 
             <div className="card">
-              <h3>Progress</h3>
+              <h3>Your Progress</h3>
               <div className="progress-bar">
-                <div className="progress-fill" style={{ width: `${calculateProgress()}%` }} />
+                <div className="progress-fill" style={{ width: `${progress}%` }} />
               </div>
-              <p>{calculateProgress()}% Complete</p>
+              <div className="progress-stats">
+                <p className="progress-percentage">{progress}% Complete</p>
+                <p className="progress-message">{getProgressMessage()}</p>
+              </div>
+              <div className="task-summary">
+                <span>✅ Completed: {tasks.filter(t => t.status === 'completed').length}</span>
+                <span>📤 Submitted: {tasks.filter(t => t.status === 'submitted').length}</span>
+                <span>⏳ Pending: {tasks.filter(t => t.status === 'pending').length}</span>
+              </div>
             </div>
 
             <div className="card">
-              <h3>Members</h3>
+              <h3>Team Members</h3>
               <div className="members">
                 {members.length > 0 ? (
                   members.map((member, i) => (
                     <div key={i} className="member">
-                      {member.name} {member.user_id === user?.user_id ? "(You)" : ""}
+                      <span className="member-name">{member.name}</span>
+                      {member.user_id === user?.user_id && <span className="you-badge">(You)</span>}
                     </div>
                   ))
                 ) : (
                   <p>No members in group</p>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Recent Activity Section */}
+          <div className="recent-activity">
+            <h3>Recent Activity</h3>
+            <div className="activity-list">
+              {tasks.filter(t => t.status === 'submitted').slice(0, 3).map(task => (
+                <div key={task.task_id} className="activity-item">
+                  <span className="activity-icon">📤</span>
+                  <div>
+                    <p><strong>{task.title}</strong> submitted for review</p>
+                    <small>Waiting for lecturer approval</small>
+                  </div>
+                </div>
+              ))}
+              {tasks.filter(t => t.status === 'completed').slice(0, 3).map(task => (
+                <div key={task.task_id} className="activity-item">
+                  <span className="activity-icon">✅</span>
+                  <div>
+                    <p><strong>{task.title}</strong> completed</p>
+                    <small>Great work!</small>
+                  </div>
+                </div>
+              ))}
+              {tasks.filter(t => t.status === 'pending' && t.status !== 'submitted' && t.status !== 'completed').length === 0 && (
+                <div className="activity-item">
+                  <span className="activity-icon">📭</span>
+                  <div>
+                    <p>No recent activity</p>
+                    <small>Start working on your tasks</small>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -322,6 +458,7 @@ export default function StudentDashboard() {
             <div className="modal-body">
               <h3>{selectedTask.title}</h3>
               <p>{selectedTask.description}</p>
+              <p><strong>Deadline:</strong> {selectedTask.deadline || "No deadline"}</p>
               
               <div className="form-group">
                 <label>File Link (Google Drive, GitHub, etc.):</label>
@@ -329,7 +466,7 @@ export default function StudentDashboard() {
                   type="text" 
                   value={fileLink}
                   onChange={(e) => setFileLink(e.target.value)}
-                  placeholder="https://..."
+                  placeholder="https://drive.google.com/..."
                 />
               </div>
               
@@ -341,10 +478,12 @@ export default function StudentDashboard() {
             </div>
             
             <div className="modal-footer">
-              <button onClick={handleSubmitTask} disabled={submitting}>
+              <button onClick={handleSubmitTask} disabled={submitting} className="submit-btn">
                 {submitting ? "Submitting..." : "Submit Task"}
               </button>
-              <button onClick={() => setShowSubmitModal(false)}>Cancel</button>
+              <button onClick={() => setShowSubmitModal(false)} className="cancel-btn">
+                Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -355,6 +494,14 @@ export default function StudentDashboard() {
         <div className="settings-overlay">
           <div className="settings-modal">
             <button className="close-settings" onClick={() => setShowSettings(false)}>✕</button>
+            <h3>Settings</h3>
+            <div className="settings-option">
+              <label>
+                <input type="checkbox" checked={darkMode} onChange={() => setDarkMode(!darkMode)} />
+                Dark Mode
+              </label>
+            </div>
+            <button className="close-btn" onClick={() => setShowSettings(false)}>Close</button>
           </div>
         </div>
       )}

@@ -55,12 +55,18 @@ export default function Login() {
         
         // Redirect based on role from backend (not from dropdown)
         const userRole = data.user.role;
+        
+        // Block admin login - if user is admin, redirect to login with error
+        if (userRole === 'admin') {
+          setErrors({ general: "Admin access has been disabled. Please contact system administrator." });
+          setLoading(false);
+          return;
+        }
+        
         if (userRole === 'student') {
           navigate('/student');
         } else if (userRole === 'lecturer') {
           navigate('/lecturer');
-        } else if (userRole === 'admin') {
-          navigate('/admin');
         } else {
           navigate('/dashboard');
         }
@@ -102,7 +108,7 @@ export default function Login() {
         <select value={role} onChange={(e) => setRole(e.target.value)}>
           <option value="student">Student</option>
           <option value="lecturer">Lecturer</option>
-          <option value="admin">Admin</option>
+          {/* Admin option removed */}
         </select>
 
         {errors.role && <p className="error">{errors.role}</p>}
@@ -116,7 +122,7 @@ export default function Login() {
         </button>
 
         <p className="register">
-          Don’t have an account? <Link to="/register">Register</Link>
+          Don't have an account? <Link to="/register">Register</Link>
         </p>
       </div>
     </div>
