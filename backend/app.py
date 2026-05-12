@@ -27,7 +27,7 @@ def register():
     name     = data["name"]
     email    = data["email"]
     password = data["password"]
-    role     = data["role"]   # student, instructor, admin
+    role     = data["role"]   # student, lecturer, admin
 
     conn = get_db()
     cur  = conn.cursor(dictionary=True)
@@ -108,7 +108,7 @@ def get_projects():
     conn = get_db()
     cur  = conn.cursor(dictionary=True)
 
-    if session["role"] in ("instructor", "admin"):
+    if session["role"] in ("lecturer", "admin"):
         cur.execute("SELECT * FROM projects")
     else:
         cur.execute("""
@@ -125,13 +125,13 @@ def get_projects():
     return jsonify(projects)
 
 
-# POST /projects  — create a new project (instructor/admin only)
+# POST /projects  — create a new project (lecturer/admin only)
 @app.route("/projects", methods=["POST"])
 def create_project():
     if "user_id" not in session:
         return jsonify({"error": "Please log in"}), 401
-    if session["role"] not in ("instructor", "admin"):
-        return jsonify({"error": "Only instructors can create projects"}), 403
+    if session["role"] not in ("lecturer", "admin"):
+        return jsonify({"error": "Only lecturers can create projects"}), 403
 
     data = request.get_json()
 
@@ -173,13 +173,13 @@ def get_groups(pid):
     conn.close()
     return jsonify(groups)
 
-# POST /projects/<pid>/groups  — create a group (instructor/admin only)
+# POST /projects/<pid>/groups  — create a group (lecturer/admin only)
 @app.route("/projects/<int:pid>/groups", methods=["POST"])
 def create_group(pid):
     if "user_id" not in session:
         return jsonify({"error": "Please log in"}), 401
-    if session["role"] not in ("instructor", "admin"):
-        return jsonify({"error": "Only instructors can create groups"}), 403
+    if session["role"] not in ("lecturer", "admin"):
+        return jsonify({"error": "Only lecturers can create groups"}), 403
 
     try:
         data = request.get_json()
@@ -217,8 +217,8 @@ def create_group(pid):
 def add_member(gid):
     if "user_id" not in session:
         return jsonify({"error": "Please log in"}), 401
-    if session["role"] not in ("instructor", "admin"):
-        return jsonify({"error": "Only instructors can add members"}), 403
+    if session["role"] not in ("lecturer", "admin"):
+        return jsonify({"error": "Only lecturers can add members"}), 403
 
     data  = request.get_json()
     email = data["email"]
@@ -286,13 +286,13 @@ def get_tasks(gid):
     return jsonify(tasks)
 
 
-# POST /groups/<gid>/tasks  — create a task (instructor/admin only)
+# POST /groups/<gid>/tasks  — create a task (lecturer/admin only)
 @app.route("/groups/<int:gid>/tasks", methods=["POST"])
 def create_task(gid):
     if "user_id" not in session:
         return jsonify({"error": "Please log in"}), 401
-    if session["role"] not in ("instructor", "admin"):
-        return jsonify({"error": "Only instructors can create tasks"}), 403
+    if session["role"] not in ("lecturer", "admin"):
+        return jsonify({"error": "Only lecturers can create tasks"}), 403
 
     data = request.get_json()
 
@@ -359,13 +359,13 @@ def submit_task(tid):
     return jsonify({"message": "Task submitted successfully"})
 
 
-# PATCH /tasks/<tid>/verify  — instructor marks task as completed
+# PATCH /tasks/<tid>/verify  — lecturer marks task as completed
 @app.route("/tasks/<int:tid>/verify", methods=["PATCH"])
 def verify_task(tid):
     if "user_id" not in session:
         return jsonify({"error": "Please log in"}), 401
-    if session["role"] not in ("instructor", "admin"):
-        return jsonify({"error": "Only instructors can verify tasks"}), 403
+    if session["role"] not in ("lecturer", "admin"):
+        return jsonify({"error": "Only lecturers can verify tasks"}), 403
 
     conn = get_db()
     cur  = conn.cursor(dictionary=True)
@@ -699,7 +699,7 @@ def dashboard():
 def get_all_groups():
     if "user_id" not in session:
         return jsonify({"error": "Please log in"}), 401
-    if session["role"] not in ("instructor", "admin"):
+    if session["role"] not in ("lecturer", "admin"):
         return jsonify({"error": "Access denied"}), 403
     
     conn = get_db()
@@ -715,7 +715,7 @@ def get_all_groups():
 def get_students():
     if "user_id" not in session:
         return jsonify({"error": "Please log in"}), 401
-    if session["role"] not in ("instructor", "admin"):
+    if session["role"] not in ("lecturer", "admin"):
         return jsonify({"error": "Access denied"}), 403
     
     conn = get_db()
