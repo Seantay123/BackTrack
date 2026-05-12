@@ -45,6 +45,9 @@ export default function Login() {
       });
       
       const data = await response.json();
+
+      console.log(data.user);
+      console.log(data.user.role);
       
       if (response.ok) {
         // Save user data for dashboard
