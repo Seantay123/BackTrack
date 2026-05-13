@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 import mysql.connector
 import bcrypt
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = "backtrack_secret_key"
@@ -16,6 +17,10 @@ def get_db():
         database="backtrack_db"
     )
     return conn
+
+# Alias for compatibility with frontend code
+def get_db_connection():
+    return get_db()
 
 
 # AUTH ROUTES
@@ -97,6 +102,7 @@ def logout():
     session.clear()
     return jsonify({"message": "Logged out"})
 
+
 # PROJECT ROUTES
 
 # GET /projects  — list all projects for the logged-in user
@@ -134,27 +140,35 @@ def create_project():
         return jsonify({"error": "Only lecturers can create projects"}), 403
 
     data = request.get_json()
+    required_fields = ["project_name"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
 
     conn = get_db()
-    cur  = conn.cursor(dictionary=True)
+    cur = conn.cursor(dictionary=True)
 
-    cur.execute("""
-        INSERT INTO projects (project_name, description, start_date, end_date, created_by)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (
-        data["project_name"],
-        data.get("description"),
-        data.get("start_date"),
-        data.get("end_date"),
-        session["user_id"]
-    ))
-    conn.commit()
-    project_id = cur.lastrowid
-
-    cur.close()
-    conn.close()
-    return jsonify({"message": "Project created", "project_id": project_id}), 201
-
+    try:
+        cur.execute("""
+            INSERT INTO projects (project_name, description, start_date, end_date, created_by)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            data["project_name"],
+            data.get("description"),
+            data.get("start_date"),
+            data.get("end_date"),
+            session["user_id"]
+        ))
+        conn.commit()
+        project_id = cur.lastrowid
+        cur.close()
+        conn.close()
+        return jsonify({"message": "Project created", "project_id": project_id}), 201
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        return jsonify({"error": str(e)}), 500
 
 
 # GROUP ROUTES
@@ -172,6 +186,7 @@ def get_groups(pid):
     cur.close()
     conn.close()
     return jsonify(groups)
+
 
 # POST /projects/<pid>/groups  — create a group (lecturer/admin only)
 @app.route("/projects/<int:pid>/groups", methods=["POST"])
@@ -212,6 +227,7 @@ def create_group(pid):
         print(f"Error creating group: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+
 # POST /groups/<gid>/members  — add a student to a group by email
 @app.route("/groups/<int:gid>/members", methods=["POST"])
 def add_member(gid):
@@ -221,6 +237,9 @@ def add_member(gid):
         return jsonify({"error": "Only lecturers can add members"}), 403
 
     data  = request.get_json()
+    if not data or "email" not in data:
+        return jsonify({"error": "Email is required"}), 400
+    
     email = data["email"]
 
     conn = get_db()
@@ -232,6 +251,16 @@ def add_member(gid):
         cur.close()
         conn.close()
         return jsonify({"error": "User not found"}), 404
+
+    # Check if already a member
+    cur.execute(
+        "SELECT * FROM group_members WHERE group_id = %s AND user_id = %s",
+        (gid, user["user_id"])
+    )
+    if cur.fetchone():
+        cur.close()
+        conn.close()
+        return jsonify({"error": "User is already a member of this group"}), 400
 
     cur.execute(
         "INSERT INTO group_members (group_id, user_id) VALUES (%s, %s)",
@@ -295,71 +324,200 @@ def create_task(gid):
         return jsonify({"error": "Only lecturers can create tasks"}), 403
 
     data = request.get_json()
+    if not data or "assigned_to" not in data or "title" not in data:
+        return jsonify({"error": "Missing required fields: assigned_to, title"}), 400
 
     conn = get_db()
     cur  = conn.cursor(dictionary=True)
-    cur.execute("""
-        INSERT INTO tasks (group_id, assigned_to, title, description, deadline)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (gid, data["assigned_to"], data["title"], data.get("description"), data.get("deadline")))
-    conn.commit()
-    task_id = cur.lastrowid
+    
+    try:
+        cur.execute("""
+            INSERT INTO tasks (group_id, assigned_to, title, description, deadline, status)
+            VALUES (%s, %s, %s, %s, %s, 'pending')
+        """, (gid, data["assigned_to"], data["title"], data.get("description"), data.get("deadline")))
+        conn.commit()
+        task_id = cur.lastrowid
 
-    # Log the activity
-    cur.execute(
-        "INSERT INTO activity_logs (user_id, action, entity) VALUES (%s, %s, %s)",
-        (session["user_id"], f"Created task: {data['title']}", f"task_{task_id}")
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
-    return jsonify({"message": "Task created", "task_id": task_id}), 201
+        # Log the activity
+        cur.execute(
+            "INSERT INTO activity_logs (user_id, action, entity) VALUES (%s, %s, %s)",
+            (session["user_id"], f"Created task: {data['title']}", f"task_{task_id}")
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"message": "Task created", "task_id": task_id}), 201
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        return jsonify({"error": str(e)}), 500
 
 
-# PATCH /tasks/<tid>/submit  — student submits a task
-@app.route("/tasks/<int:tid>/submit", methods=["PATCH"])
-def submit_task(tid):
+# PUT /tasks/<int:task_id>/submit  — student submits a task 
+@app.route('/tasks/<int:task_id>/submit', methods=['PUT', 'PATCH'])
+def submit_task(task_id):
     if "user_id" not in session:
         return jsonify({"error": "Please log in"}), 401
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        file_link = data.get('file_link')
+        if not file_link:
+            return jsonify({"error": "File link is required"}), 400
+        
+        conn = get_db()  # ✅ Fixed: using get_db() not get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Check if task exists and belongs to this student
+        cursor.execute("""
+            SELECT t.*, u.name as student_name 
+            FROM tasks t
+            JOIN users u ON t.assigned_to = u.user_id
+            WHERE t.task_id = %s
+        """, (task_id,))
+        
+        task = cursor.fetchone()
+        if not task:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Task not found"}), 404
+        
+        # Check if the logged-in student is the assigned person
+        if task["assigned_to"] != session["user_id"]:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "This task is not assigned to you"}), 403
+        
+        # Check if task is already completed
+        if task["status"] == "completed":
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Task is already completed"}), 400
+        
+        # Update the task - Using %s for MySQL (not ?)
+        cursor.execute('''
+            UPDATE tasks 
+            SET status = 'submitted', 
+                file_link = %s, 
+                submitted_at = %s
+            WHERE task_id = %s
+        ''', (file_link, datetime.now(), task_id))
+        
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            "message": "Task submitted successfully",
+            "task_id": task_id,
+            "status": "submitted"
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in submit_task: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
-    data      = request.get_json()
-    file_link = data.get("file_link")
 
+# PUT /tasks/<int:task_id>/review  — lecturer reviews a submission
+@app.route('/tasks/<int:task_id>/review', methods=['PUT'])
+def review_task(task_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Please log in"}), 401
+    if session["role"] not in ("lecturer", "admin"):
+        return jsonify({"error": "Only lecturers can review tasks"}), 403
+    
+    try:
+        data = request.get_json()
+        new_status = data.get('status')  # 'completed' or 'pending'
+        comment = data.get('comment', '')
+        grade = data.get('grade')
+        
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get task details
+        cursor.execute("SELECT * FROM tasks WHERE task_id = %s", (task_id,))
+        task = cursor.fetchone()
+        
+        if not task:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Task not found"}), 404
+        
+        # Update the task
+        if new_status == 'completed':
+            cursor.execute('''
+                UPDATE tasks 
+                SET status = 'completed', 
+                    completed_at = %s,
+                    grade = %s,
+                    feedback = %s
+                WHERE task_id = %s
+            ''', (datetime.now(), grade, comment, task_id))
+        else:
+            cursor.execute('''
+                UPDATE tasks 
+                SET status = 'pending', 
+                    file_link = NULL,
+                    submitted_at = NULL,
+                    feedback = %s
+                WHERE task_id = %s
+            ''', (comment, task_id))
+        
+        conn.commit()
+        
+        # Log the activity
+        action = "Approved and completed" if new_status == 'completed' else "Rejected and sent back"
+        cursor.execute(
+            "INSERT INTO activity_logs (user_id, action, entity) VALUES (%s, %s, %s)",
+            (session["user_id"], f"{action} task: {task['title']}", f"task_{task_id}")
+        )
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            "message": f"Task {new_status if new_status == 'completed' else 'rejected'} successfully",
+            "task_id": task_id,
+            "status": new_status
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in review_task: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+# GET /tasks/submitted  — get all submitted tasks for lecturer review
+@app.route("/tasks/submitted", methods=["GET"])
+def get_submitted_tasks():
+    if "user_id" not in session:
+        return jsonify({"error": "Please log in"}), 401
+    if session["role"] not in ("lecturer", "admin"):
+        return jsonify({"error": "Access denied"}), 403
+    
     conn = get_db()
-    cur  = conn.cursor(dictionary=True)
-
-    # Check the task exists and belongs to this student
-    cur.execute("SELECT * FROM tasks WHERE task_id = %s", (tid,))
-    task = cur.fetchone()
-    if not task:
-        cur.close()
-        conn.close()
-        return jsonify({"error": "Task not found"}), 404
-    if task["assigned_to"] != session["user_id"]:
-        cur.close()
-        conn.close()
-        return jsonify({"error": "This task is not assigned to you"}), 403
-
-    # Insert into submissions table
-    cur.execute(
-        "INSERT INTO submissions (task_id, user_id, file_link) VALUES (%s, %s, %s)",
-        (tid, session["user_id"], file_link)
-    )
-    # Update task status to submitted
-    cur.execute("UPDATE tasks SET status = 'submitted' WHERE task_id = %s", (tid,))
-
-    # Log the activity
-    cur.execute(
-        "INSERT INTO activity_logs (user_id, action, entity) VALUES (%s, %s, %s)",
-        (session["user_id"], f"Submitted task: {task['title']}", f"task_{tid}")
-    )
-    conn.commit()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT t.*, u.name AS student_name, pg.group_name
+        FROM tasks t
+        JOIN users u ON t.assigned_to = u.user_id
+        JOIN project_groups pg ON t.group_id = pg.group_id
+        WHERE t.status = 'submitted'
+        ORDER BY t.submitted_at DESC
+    """)
+    tasks = cur.fetchall()
     cur.close()
     conn.close()
-    return jsonify({"message": "Task submitted successfully"})
+    return jsonify(tasks)
 
 
-# PATCH /tasks/<tid>/verify  — lecturer marks task as completed
+# PATCH /tasks/<tid>/verify  — lecturer marks task as completed (legacy)
 @app.route("/tasks/<int:tid>/verify", methods=["PATCH"])
 def verify_task(tid):
     if "user_id" not in session:
@@ -370,17 +528,116 @@ def verify_task(tid):
     conn = get_db()
     cur  = conn.cursor(dictionary=True)
 
-    cur.execute("UPDATE tasks SET status = 'completed' WHERE task_id = %s", (tid,))
-    cur.execute("""
-        UPDATE submissions SET verified = TRUE
-        WHERE task_id = %s
-        ORDER BY submitted_at DESC
-        LIMIT 1
-    """, (tid,))
+    cur.execute("UPDATE tasks SET status = 'completed', completed_at = %s WHERE task_id = %s", (datetime.now(), tid))
     conn.commit()
     cur.close()
     conn.close()
     return jsonify({"message": "Task verified and marked as completed"})
+
+
+# GET /groups/all  — get all groups for lecturer dashboard
+@app.route("/groups/all", methods=["GET"])
+def get_all_groups():
+    if "user_id" not in session:
+        return jsonify({"error": "Please log in"}), 401
+    if session["role"] not in ("lecturer", "admin"):
+        return jsonify({"error": "Access denied"}), 403
+    
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT pg.*, p.project_name 
+        FROM project_groups pg
+        JOIN projects p ON pg.project_id = p.project_id
+    """)
+    groups = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(groups)
+
+
+# GET /users/students  — get all students for teacher dashboard
+@app.route("/users/students", methods=["GET"])
+def get_students():
+    if "user_id" not in session:
+        return jsonify({"error": "Please log in"}), 401
+    if session["role"] not in ("lecturer", "admin"):
+        return jsonify({"error": "Access denied"}), 403
+    
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT user_id, name, email, role FROM users WHERE role = 'student'")
+    students = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(students)
+
+
+# GET /api/me  — get current user info
+@app.route("/api/me", methods=["GET"])
+def get_current_user():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT user_id, name, email, role FROM users WHERE user_id = %s", (session["user_id"],))
+    user = cur.fetchone()
+    cur.close()
+    conn.close()
+    
+    return jsonify({
+        "user_id": user["user_id"],
+        "name": user["name"],
+        "email": user["email"],
+        "role": user["role"]
+    })
+
+
+# GET /student/tasks  — get tasks for the logged-in student
+@app.route("/student/tasks", methods=["GET"])
+def get_student_tasks():
+    if "user_id" not in session:
+        return jsonify({"error": "Please log in"}), 401
+    if session["role"] != "student":
+        return jsonify({"error": "Access denied"}), 403
+    
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT t.*, pg.group_name
+        FROM tasks t
+        JOIN project_groups pg ON t.group_id = pg.group_id
+        WHERE t.assigned_to = %s
+        ORDER BY t.deadline ASC
+    """, (session["user_id"],))
+    tasks = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(tasks)
+
+
+# GET /student/groups  — get groups for the logged-in student
+@app.route("/student/groups", methods=["GET"])
+def get_student_groups():
+    if "user_id" not in session:
+        return jsonify({"error": "Please log in"}), 401
+    if session["role"] != "student":
+        return jsonify({"error": "Access denied"}), 403
+    
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT pg.*, p.project_name
+        FROM group_members gm
+        JOIN project_groups pg ON gm.group_id = pg.group_id
+        JOIN projects p ON pg.project_id = p.project_id
+        WHERE gm.user_id = %s
+    """, (session["user_id"],))
+    groups = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(groups)
 
 
 # PEER EVALUATION ROUTES
@@ -489,10 +746,9 @@ def get_scores(gid):
         uid = member["user_id"]
 
         # --- Task Score (40%) ---
-        # Percentage of assigned tasks that are completed
         cur.execute("""
             SELECT COUNT(*) AS total,
-                   SUM(status = 'completed') AS done
+                   SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS done
             FROM tasks
             WHERE group_id = %s AND assigned_to = %s
         """, (gid, uid))
@@ -503,7 +759,6 @@ def get_scores(gid):
             task_score = 0
 
         # --- Activity Score (30%) ---
-        # Number of activity logs for this user in this group
         cur.execute("""
             SELECT COUNT(*) AS cnt
             FROM activity_logs al
@@ -512,7 +767,7 @@ def get_scores(gid):
         """, (gid, uid))
         user_logs = cur.fetchone()["cnt"]
 
-        # Get max logs among all members (to normalise)
+        # Get max logs among all members
         cur.execute("""
             SELECT MAX(log_count) AS max_logs FROM (
                 SELECT COUNT(*) AS log_count
@@ -526,7 +781,6 @@ def get_scores(gid):
         activity_score = round(user_logs / max_logs * 100, 2) if max_logs > 0 else 0
 
         # --- Peer Score (30%) ---
-        # Average peer rating * 20  (rating is 0–5, so *20 gives 0–100)
         cur.execute("""
             SELECT AVG(rating) AS avg_rating
             FROM peer_evaluations
@@ -575,7 +829,7 @@ def get_my_score(gid):
 
     # Task score
     cur.execute("""
-        SELECT COUNT(*) AS total, SUM(status = 'completed') AS done
+        SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS done
         FROM tasks WHERE group_id = %s AND assigned_to = %s
     """, (gid, uid))
     t = cur.fetchone()
@@ -645,6 +899,7 @@ def get_activity(gid):
     conn.close()
     return jsonify(logs)
 
+
 # DASHBOARD ROUTE
 
 # GET /dashboard  — summary for the logged-in user
@@ -672,7 +927,7 @@ def dashboard():
 
         # Task summary
         cur.execute("""
-            SELECT COUNT(*) AS total, SUM(status = 'completed') AS done
+            SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS done
             FROM tasks WHERE group_id = %s AND assigned_to = %s
         """, (gid, uid))
         t = cur.fetchone()
@@ -694,50 +949,8 @@ def dashboard():
     conn.close()
     return jsonify(groups)
 
-# Get all groups (for lecturer dashboard)
-@app.route("/groups/all", methods=["GET"])
-def get_all_groups():
-    if "user_id" not in session:
-        return jsonify({"error": "Please log in"}), 401
-    if session["role"] not in ("lecturer", "admin"):
-        return jsonify({"error": "Access denied"}), 403
-    
-    conn = get_db()
-    cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM project_groups")
-    groups = cur.fetchall()
-    cur.close()
-    conn.close()
-    return jsonify(groups)
 
-# Get all students (for teacher dashboard)
-@app.route("/users/students", methods=["GET"])
-def get_students():
-    if "user_id" not in session:
-        return jsonify({"error": "Please log in"}), 401
-    if session["role"] not in ("lecturer", "admin"):
-        return jsonify({"error": "Access denied"}), 403
-    
-    conn = get_db()
-    cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM users WHERE role = 'student'")
-    students = cur.fetchall()
-    cur.close()
-    conn.close()
-    return jsonify(students)
-
-# Get current user info
-@app.route("/api/me", methods=["GET"])
-def get_current_user():
-    if "user_id" not in session:
-        return jsonify({"error": "Not logged in"}), 401
-    
-    return jsonify({
-        "user_id": session["user_id"],
-        "name": session.get("name"),
-        "role": session.get("role")
-    })
-
+# HOME ROUTE
 @app.route('/')
 def home():
     return jsonify({
@@ -747,9 +960,12 @@ def home():
             "register": "POST /register",
             "login": "POST /login",
             "projects": "GET /projects",
-            "dashboard": "GET /dashboard"
+            "dashboard": "GET /dashboard",
+            "submit_task": "PUT /tasks/<id>/submit",
+            "review_task": "PUT /tasks/<id>/review"
         }
     })
+
 
 # ──────────────────────────────────────────────
 if __name__ == "__main__":

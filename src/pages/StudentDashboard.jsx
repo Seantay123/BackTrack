@@ -126,67 +126,58 @@ export default function StudentDashboard() {
     }
   };
 
-  const handleSubmitTask = async () => {
-    if (!fileLink) {
-      setSubmitMessage("Please provide a file link");
-      return;
-    }
+ const handleSubmitTask = async () => {
+  // Only check if link is provided, no validation of format
+  if (!fileLink || fileLink.trim() === "") {
+    setSubmitMessage("Please provide a link to your work");
+    return;
+  }
+  
+  setSubmitting(true);
+  setSubmitMessage("");
+  
+  try {
+    const response = await fetch(`http://localhost:5000/tasks/${selectedTask.task_id}/submit`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ 
+        file_link: fileLink.trim()  // Send as-is, no validation
+      })
+    });
     
-    setSubmitting(true);
-    setSubmitMessage("");
+    const data = await response.json();
     
-    try {
-      const response = await fetch(`http://localhost:5000/tasks/${selectedTask.task_id}/submit`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ 
-          status: 'submitted',
-          file_link: fileLink 
-        })
-      });
+    if (response.ok) {
+      // Update local state immediately
+      const updatedTasks = tasks.map(task => 
+        task.task_id === selectedTask.task_id 
+          ? { ...task, status: 'submitted', file_link: fileLink }
+          : task
+      );
+      setTasks(updatedTasks);
       
-      if (response.ok) {
-        // Update the task status locally IMMEDIATELY
-        const updatedTasks = tasks.map(task => 
-          task.task_id === selectedTask.task_id 
-            ? { ...task, status: 'submitted' }
-            : task
-        );
-        setTasks(updatedTasks);
-        
-        // Calculate updated progress
-        const completedOrSubmitted = updatedTasks.filter(t => t.status === 'completed' || t.status === 'submitted').length;
-        const newProgress = Math.round((completedOrSubmitted / updatedTasks.length) * 100);
-        
-        setSubmitMessage("✅ Task submitted successfully!");
-        setToastMessage(`✅ "${selectedTask.title}" submitted! Progress: ${newProgress}%`);
-        
-        // Close modal after delay
-        setTimeout(() => {
-          setShowSubmitModal(false);
-          setSelectedTask(null);
-          setFileLink("");
-          setSubmitMessage("");
-          
-          // Refresh in background to sync with backend
-          setTimeout(() => {
-            loadUserData();
-          }, 500);
-          
-          setTimeout(() => setToastMessage(""), 3000);
-        }, 1500);
-      } else {
-        const error = await response.json();
-        setSubmitMessage(`❌ Error: ${error.error || 'Submission failed'}`);
-      }
-    } catch (err) {
-      console.error('Submission error:', err);
-      setSubmitMessage("❌ Failed to submit task");
-    } finally {
-      setSubmitting(false);
+      setSubmitMessage("✅ Task submitted successfully!");
+      setToastMessage(`✅ "${selectedTask.title}" submitted!`);
+      
+      setTimeout(() => {
+        setShowSubmitModal(false);
+        setSelectedTask(null);
+        setFileLink("");
+        setSubmitMessage("");
+        loadUserData(); // Refresh data from backend
+        setTimeout(() => setToastMessage(""), 3000);
+      }, 1500);
+    } else {
+      setSubmitMessage(`❌ Error: ${data.error || 'Submission failed'}`);
     }
-  };
+  } catch (err) {
+    console.error('Submission error:', err);
+    setSubmitMessage("❌ Failed to submit task. Please try again.");
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const openSubmitModal = (task) => {
     if (task.status === 'pending') {
@@ -445,49 +436,51 @@ export default function StudentDashboard() {
       </div>
 
       {/* SUBMIT TASK MODAL */}
-      {showSubmitModal && selectedTask && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h2>Submit Task</h2>
-              <button className="close-modal" onClick={() => setShowSubmitModal(false)}>
-                <FaTimes />
-              </button>
-            </div>
-            
-            <div className="modal-body">
-              <h3>{selectedTask.title}</h3>
-              <p>{selectedTask.description}</p>
-              <p><strong>Deadline:</strong> {selectedTask.deadline || "No deadline"}</p>
-              
-              <div className="form-group">
-                <label>File Link (Google Drive, GitHub, etc.):</label>
-                <input 
-                  type="text" 
-                  value={fileLink}
-                  onChange={(e) => setFileLink(e.target.value)}
-                  placeholder="https://drive.google.com/..."
-                />
-              </div>
-              
-              {submitMessage && (
-                <div className={`submit-message ${submitMessage.includes("✅") ? "success" : "error"}`}>
-                  {submitMessage}
-                </div>
-              )}
-            </div>
-            
-            <div className="modal-footer">
-              <button onClick={handleSubmitTask} disabled={submitting} className="submit-btn">
-                {submitting ? "Submitting..." : "Submit Task"}
-              </button>
-              <button onClick={() => setShowSubmitModal(false)} className="cancel-btn">
-                Cancel
-              </button>
-            </div>
-          </div>
+{showSubmitModal && selectedTask && (
+  <div className="modal-overlay">
+    <div className="modal">
+      <div className="modal-header">
+        <h2>Submit Task</h2>
+        <button className="close-modal" onClick={() => setShowSubmitModal(false)}>
+          <FaTimes />
+        </button>
+      </div>
+      
+      <div className="modal-body">
+        <h3>{selectedTask.title}</h3>
+        <p>{selectedTask.description}</p>
+        <p><strong>Deadline:</strong> {selectedTask.deadline || "No deadline"}</p>
+        
+        <div className="form-group">
+          <label>Submit your work link:</label>
+          <p className="help-text">Paste any link to your work (Google Docs, GitHub, Drive, Dropbox, etc.)</p>
+          <input 
+            type="text" 
+            value={fileLink}
+            onChange={(e) => setFileLink(e.target.value)}
+            placeholder="https://drive.google.com/..., https://github.com/..., etc."
+            className="link-input"
+          />
         </div>
-      )}
+        
+        {submitMessage && (
+          <div className={`submit-message ${submitMessage.includes("✅") ? "success" : "error"}`}>
+            {submitMessage}
+          </div>
+        )}
+      </div>
+      
+      <div className="modal-footer">
+        <button onClick={handleSubmitTask} disabled={submitting} className="submit-btn">
+          {submitting ? "Submitting..." : "Submit Task"}
+        </button>
+        <button onClick={() => setShowSubmitModal(false)} className="cancel-btn">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* SETTINGS MODAL */}
       {showSettings && (
